@@ -1,0 +1,22 @@
+﻿# 依赖
+node_modules/
+.pnpm-store/
+
+# Python 虚拟环境
+venv/
+
+# 构建产物
+psy-kg-offline.html
+test-offline.html
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 编辑器
+.vscode/
+.idea/
+
+# 系统
+.DS_Store
+Thumbs.db

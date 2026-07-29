@@ -1,0 +1,11 @@
+# CC Switch deepseek-v4-flash 专属限流规则
+model_rules:
+  deepseek-v4-flash:
+    max_input_token: 1000000
+    enable_auto_truncate: true
+    truncate_strategy: cut_context_first
+    batch_embedding_limit: 10
+request_filter:
+  enable_token_counter: true
+  reject_over_limit: true
+  clean_useless_metadata: true

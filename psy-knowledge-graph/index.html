@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>心理学知识图谱 2.0</title>
+<link rel="stylesheet" href="/css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.min.js"
+  }
+}
+</script>
+</head>
+<body class="day-mode">
+
+<div id="passwordOverlay" class="password-overlay">
+  <div class="password-box">
+    <h1>心理学知识图谱 2.0</h1>
+    <p class="password-subtitle">请输入访问密码</p>
+    <div class="password-input-row">
+      <input type="password" id="passwordInput" placeholder="输入密码" maxlength="64" autofocus>
+      <button class="btn btn-primary" id="passwordSubmit">进入</button>
+    </div>
+    <p id="passwordError" class="password-error hidden">密码错误，请重试</p>
+  </div>
+</div>
+
+<div id="overviewThumb" style="display:none;position:fixed;top:56px;right:12px;width:90px;height:90px;background:rgba(0,0,0,0.2);border-radius:8px;cursor:pointer;z-index:300;overflow:hidden;border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(4px)">
+  <canvas id="overviewCanvas" width="90" height="90"></canvas>
+  <div style="position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:9px;color:rgba(255,255,255,0.6);pointer-events:none">全部展开</div>
+</div>
+
+<div id="errorMsg" style="display:none;position:fixed;top:60px;left:10%;width:80%;background:#2a0a0a;border:1px solid #E8635A;color:#ff6b6b;padding:16px 20px;border-radius:8px;z-index:9999;font-size:13px;"></div>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <h1 class="logo">心理学知识图谱 2.0</h1>
+    <span class="subtitle">3D同心圆环 · 四年本科 · AI问答</span>
+  </div>
+  <div class="topbar-right">
+    <button class="btn btn-ghost" id="btnCollapseAll">折叠</button>
+    <button class="btn btn-ghost" id="btnExpandAll">展开</button>
+    <button class="btn btn-primary year-btn" data-year="大一">大一</button>
+    <button class="btn btn-primary year-btn" data-year="大二">大二</button>
+    <button class="btn btn-primary year-btn" data-year="大三">大三</button>
+    <button class="btn btn-primary year-btn" data-year="大四">大四</button>
+    <button class="btn btn-ghost" id="btnResetView">复位</button>
+    <button class="btn btn-ghost" id="btnToggleRotate">自动</button>
+    <button class="btn btn-ghost" id="btnDayNight">☆</button>
+  </div>
+</header>
+
+<div class="main-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><h2>目录</h2></div>
+    <div class="sidebar-search"><input type="text" id="treeSearch" placeholder="搜索知识点..." /></div>
+    <div class="sidebar-tree" id="treeContainer"></div>
+    <div class="legend-panel" id="legendPanel">
+      <div class="legend-title">图例</div>
+      <div class="legend-grid" id="legendGrid"></div>
+    </div>
+  </aside>
+  <main class="content-area">
+    <section class="graph-panel" id="graphPanel">
+      <div class="graph-canvas" id="graphContainer"></div>
+    </section>
+    <div class="divider-h" id="dividerRag"></div>
+    <section class="rag-panel" id="ragPanel">
+      <div class="rag-header">
+        <h2>AI 问答</h2>
+        <div class="rag-status" id="ragStatus"><span class="status-dot"></span> 就绪</div>
+      </div>
+      <div class="rag-messages" id="ragMessages">
+        <div class="rag-msg rag-msg-system">
+          <div class="msg-avatar">Bot</div>
+          <div class="msg-content">你好！我是心理学知识助手。问我任何心理学问题，我会检索知识图谱中的相关知识点来回答。</div>
+        </div>
+      </div>
+      <div class="rag-input-row">
+        <input type="text" id="ragInput" placeholder="输入你的心理学问题..." maxlength="500" />
+        <button class="btn btn-primary" id="btnRagSend">发送</button>
+      </div>
+      <div class="rag-settings">
+        <details>
+          <summary>高级设置</summary>
+          <div class="setting-row"><label>API网关：</label><input type="text" id="ragApiEndpoint" value="/api/cc-switch/chat" /></div>
+          <div class="setting-row"><label>API Key：</label><input type="password" id="ragApiKey" placeholder="sk-..." /></div>
+          <div class="setting-row"><label>模型：</label><input type="text" id="ragModel" value="deepseek-chat" /></div>
+          <div class="setting-row"><label>召回Top-K：</label><input type="number" id="ragTopK" value="5" min="1" max="10" /></div>
+        </details>
+      </div>
+    </section>
+  </main>
+  <aside class="side-panel" id="sidePanel">
+    <div class="side-panel-header"><h3>知识点详情</h3><button class="panel-close" id="panelClose">&times;</button></div>
+    <div class="side-panel-body" id="panelBody"></div>
+  </aside>
+</div>
+
+<script src="/js/graph.js"></script>
+<script src="/js/tree.js"></script>
+<script src="/js/detail.js"></script>
+<script src="/js/chat.js"></script>
+<script src="/js/layout.js"></script>
+<script src="/js/legend.js"></script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from '/node_modules/three/examples/jsm/controls/OrbitControls.js';
+window.THREE = THREE;
+window.OrbitControls = OrbitControls;
+
+const PASSWORD = 'PsychologyKnowledgeGraph';
+function showErr(m) {
+  var e = document.getElementById('errorMsg');
+  if(e){e.style.display='block';e.textContent=m;e.innerHTML+=m.replace(/\n/g,'<br>');}
+}
+
+var overlay = document.getElementById('passwordOverlay');
+var passInput = document.getElementById('passwordInput');
+var passSubmit = document.getElementById('passwordSubmit');
+var passError = document.getElementById('passwordError');
+passSubmit.addEventListener('click', function() {
+  var val = passInput.value.trim();
+  if (val === PASSWORD) {
+    overlay.classList.add('hidden');
+    setTimeout(startApp, 50);
+  } else {
+    passError.classList.remove('hidden');
+  }
+});
+passInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') passSubmit.click();
+});
+
+async function startApp() {
+  var _errs = [];
+  try {
+    var resp = await fetch('/js/knowledge-graph-data.json');
+    var data = await resp.json();
+    var ni = {}; data.nodes.forEach(function(n){ni[n.id]=n;});
+    var graph = null; try { graph = window.createGraph3D(document.getElementById('graphContainer'), data, ni); } catch(e){_errs.push('graph:'+e.message);}
+    window.__graph = graph;
+    var detail = null;
+    try {
+      if (window.createDetail) { detail = window.createDetail(data, ni, {
+        onNodeLink: function(id) { if(detail)detail.show(id);if(graph)graph.highlightNode(id); }
+      }); }
+    } catch(e){_errs.push('detail:'+e.message);}
+    window.__detail = detail;
+    if (graph) graph.onNodeClick(function(id) { if (detail) try{detail.show(id);}catch(e){console.error(e);} });
+    var treeMod = null;
+    try {
+      if (window.createTree) { treeMod = window.createTree(data, ni, {
+        onNodeClick: function(id) { if(detail)try{detail.show(id);}catch(e){}if(graph)graph.highlightNode(id); },
+        onYearClick: function(y) { if(graph)graph.focusYear(y); }
+      }); }
+    } catch(e){_errs.push('tree:'+e.message);}
+    window.__tree = treeMod;
+    try { if (window.createRag) window.createRag(data, ni); } catch(e){_errs.push('rag:'+e.message);}
+    try { if (window.createLayout) window.createLayout(); } catch(e){_errs.push('layout:'+e.message);}
+    try { if (window.initLegend) window.initLegend(data); } catch(e){_errs.push('legend:'+e.message);}
+
+    /* Overview thumbnail */
+    var ovCanvas = document.getElementById('overviewCanvas');
+    var ovCtx = ovCanvas ? ovCanvas.getContext('2d') : null;
+    if (ovCtx) {
+      var ovColors = ['#5B9BD5','#4ECDC4','#9B59B6','#F39C12'];
+      for (var oi = 0; oi < 4; oi++) {
+        var or = 15 + oi * 12;
+        ovCtx.beginPath();
+        ovCtx.arc(45, 45, or, 0, Math.PI * 2);
+        ovCtx.strokeStyle = ovColors[oi];
+        ovCtx.lineWidth = 4 - oi * 0.5;
+        ovCtx.globalAlpha = 0.3 + oi * 0.12;
+        ovCtx.stroke();
+      }
+      ovCtx.fillStyle = '#fff';
+      ovCtx.font = '10px sans-serif';
+      ovCtx.textAlign = 'center';
+      ovCtx.fillText('\u56db\u5e74\u5236', 45, 48);
+      ovCtx.globalAlpha = 1;
+    }
+
+    document.querySelectorAll('.year-btn').forEach(function(b){
+      b.addEventListener('click', function(){
+        document.querySelectorAll('.year-btn').forEach(function(x){x.classList.remove('active');});
+        b.classList.add('active');
+        graph.focusYear(b.dataset.year);
+        var ov = document.getElementById('overviewThumb');
+        if (ov) ov.style.display = 'block';
+      });
+    });
+    document.getElementById('btnResetView').onclick = function(){
+      graph.resetView(); graph.unhighlightAll(); if(detail)detail.hide();
+      document.querySelectorAll('.year-btn').forEach(function(x){x.classList.remove('active');});
+      var ov = document.getElementById('overviewThumb');
+      if (ov) ov.style.display = 'none';
+    };
+    if (ovCanvas) {
+      ovCanvas.parentElement.addEventListener('click', function(){
+        document.getElementById('btnResetView').click();
+      });
+    }
+    document.getElementById('btnToggleRotate').onclick = function(){
+      var a = !window.__autoRotate; window.__autoRotate = a;
+      graph.setAutoRotate(a);
+      this.textContent = a ? '自动' : '手动';
+    };
+    document.getElementById('panelClose').addEventListener('click', function(){
+      if (detail) detail.hide(); graph.unhighlightAll(); if (window.__tree) window.__tree.clearHighlight();
+    });
+    var dnBtn = document.getElementById('btnDayNight');
+    dnBtn.addEventListener('click', function(){
+      var body = document.body;
+      var isNight = body.classList.toggle('night-mode');
+      body.classList.toggle('day-mode', !isNight);
+      localStorage.setItem('kgTheme', isNight ? 'night' : 'day');
+      if (window.__graph && window.__graph.setTheme) window.__graph.setTheme(isNight ? 'night' : 'day');
+    });
+    document.getElementById('btnCollapseAll').addEventListener('click', function(){
+      if (window.__tree) window.__tree.collapseAll();
+    });
+    document.getElementById('btnExpandAll').addEventListener('click', function(){
+      if (window.__tree) window.__tree.expandAll();
+    });
+    document.getElementById('btnDayNight').textContent = '☆';
+    var _ee=document.getElementById('errorMsg');if(_errs.length&&_ee){showErr('WARN: '+_errs.join(' | '));}else if(_ee)_ee.style.display='none';
+    console.log('App started OK');
+  } catch(err) {
+    showErr('ERROR: '+err.message+'\n'+err.stack);
+    console.error(err);
+  }
+}
+</script>
+</body>
+</html>
