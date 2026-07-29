@@ -51,7 +51,5 @@ window.initLegend = function(data) {
   });
     grid.innerHTML += '<div style="width:100%;height:1px;background:var(--border-color);margin:6px 0"></div>' +
     '<div class="legend-section-title">关系类型</div>' + relHtml;
-    grid.innerHTML += '<div style="width:100%;height:1px;background:var(--border-color);margin:6px 0"></div>' +
-    '<div class="legend-section-title">关系类型</div>' + relHtml;
+  } catch(e) { console.error(e); }
 }
-*** End of File

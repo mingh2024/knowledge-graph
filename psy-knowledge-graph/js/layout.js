@@ -1,7 +1,7 @@
 /**
  * Resizable layout - draggable divider between graph and RAG panels
  */
-window.createLayout() {
+window.createLayout = function() {
   var ragPanel = document.getElementById('ragPanel');
   var divider = document.getElementById('dividerRag');
   var graphPanel = document.getElementById('graphPanel');
@@ -55,4 +55,3 @@ window.createLayout() {
     }
   });
 }
-*** End of File

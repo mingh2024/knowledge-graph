@@ -62,4 +62,3 @@ window.createDetail = function(data, nodeIndex, callbacks) {
 
   return { show: show, hide: hide };
 }
-*** End of File

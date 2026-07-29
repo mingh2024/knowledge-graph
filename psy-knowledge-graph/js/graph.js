@@ -1,5 +1,7 @@
 var THREE=window.THREE;var OrbitControls=window.OrbitControls;
 var YR=["\u5927\u4e00","\u5927\u4e8c","\u5927\u4e09","\u5927\u56db"];
+/* fixed type->ring order (outer to inner), same across all four years, by global node-count desc */
+var TYPE_ORDER=["\u6784\u5ff5","\u65b9\u6cd5","\u7406\u8bba","\u8bfe\u7a0b","\u9886\u57df","\u5e94\u7528","\u6d41\u6d3e\u4e0e\u5386\u53f2"];
 var YC={"\u5927\u4e00":0x3B82F6,"\u5927\u4e8c":0x10B981,"\u5927\u4e09":0x8B5CF6,"\u5927\u56db":0xF59E0B};
 var YC_HEX={"\u5927\u4e00":"#3B82F6","\u5927\u4e8c":"#10B981","\u5927\u4e09":"#8B5CF6","\u5927\u56db":"#F59E0B"};
 var Z_OFF={"\u5927\u4e00":-5,"\u5927\u4e8c":-1.7,"\u5927\u4e09":1.7,"\u5927\u56db":5};
@@ -100,80 +102,100 @@ window.createGraph3D=function(container,data,nodeIndex){
     var gls=new THREE.Sprite(new THREE.SpriteMaterial({map:glt,transparent:true,depthTest:false}));
     gls.position.set(R_OUT+2,0,0);gls.scale.set(2,0.35,1);rg.add(gls);
 
-    /* 5 fixed rings + center node */
+    /* fixed-order concentric rings: nodes are filled ring by ring in a fixed type order
+       (same order every year, so the wheel keeps the same "shape" across \u5927\u4e00~\u5927\u56db), and
+       the number of rings + icon/label scale for the whole year are chosen so that every
+       ring has enough arc length for its nodes at a guaranteed non-overlap spacing - a
+       crowded year (e.g. 130+ nodes) gets more/tighter rings and slightly smaller icons
+       instead of cramming nodes past their collision radius. Within a ring, nodes are
+       ordered by a barycenter heuristic (average angle of already-placed related nodes,
+       course-sector seeded on the very first ring) so related nodes line up radially
+       instead of scattering, keeping relation lines short and untangled. */
     var gNodes=data.nodes.filter(function(n){return n.year===gname;});
     if(gNodes.length===0)return;
     var buckets={};gNodes.forEach(function(n){var t=n.type||"\u5176\u4ed6";if(!buckets[t])buckets[t]=[];buckets[t].push(n);});
-    var typeNames=Object.keys(buckets).sort(function(a,b){return buckets[b].length-buckets[a].length;});
+    var typesPresent=TYPE_ORDER.filter(function(t){return buckets[t]&&buckets[t].length>0;});
+    Object.keys(buckets).forEach(function(t){if(typesPresent.indexOf(t)<0)typesPresent.push(t);});
 
-    /* Calculate adaptive spacing: 5 fixed rings from outer to inner */
-    var NUM_RINGS=5;var MAX_R=R_OUT-0.5;var MIN_R=R_EDGE+1;
-    var ringSpace=(MAX_R-MIN_R)/NUM_RINGS;
-    var totalNodes=gNodes.length;
-    var ringCapacities=[];
-    for(var ri=0;ri<NUM_RINGS;ri++){
-      var rRad=MAX_R-ri*ringSpace;
-      var circ=2*Math.PI*rRad*0.65;/* ellipse circumference factor */
-      var cap=Math.floor(circ/(0.7));/* approximate node spacing ~0.7 */
-      ringCapacities.push({radius:rRad,capacity:Math.max(cap,3),nodes:[]});
+    var yearMeta=data.years.filter(function(y){return y.name===gname;})[0];
+    var courseOrder=yearMeta?yearMeta.courses.map(function(c){return c.name;}):[];
+    function courseIdx(n){var i=courseOrder.indexOf(n.course||"");return i<0?courseOrder.length:i;}
+
+    var MAX_R=R_OUT-0.5,MIN_R=R_EDGE+1;
+    var SPACING_K=1.0;/* min arc-length per node, in units of icon scale, before icons touch */
+    var GAP_K=1.5;/* min radial gap between rings, in units of icon scale, before label/icon touch the next ring */
+    function ringPlan(scale){
+      var radii=[];for(var r=MAX_R;r>=MIN_R;r-=GAP_K*scale)radii.push(r);
+      var caps=radii.map(function(rr){return Math.max(Math.floor(2*Math.PI*rr*0.65/(SPACING_K*scale)),1);});
+      var total=0;caps.forEach(function(c){total+=c;});
+      return{radii:radii,caps:caps,total:total};
     }
+    var scale=1.2;
+    while(scale>0.5&&ringPlan(scale).total<gNodes.length*1.05)scale-=0.02;
+    scale=Math.max(scale,0.5);
+    var plan=ringPlan(scale);
 
-    /* distribute types to rings (outer to inner), most nodes first */
-    typeNames.forEach(function(tn){
-      var remaining=[].concat(buckets[tn]);
-      for(var ri=0;ri<NUM_RINGS&&remaining.length>0;ri++){
-        var room=ringCapacities[ri].capacity-ringCapacities[ri].nodes.length;
-        if(room<=0)continue;
-        var take=Math.min(remaining.length,room);
-        for(var k=0;k<take;k++)ringCapacities[ri].nodes.push(remaining.shift());
-      }
-      /* overflow: put remaining in inner rings */
-      for(var ri=NUM_RINGS-1;ri>=0&&remaining.length>0;ri--){
-        while(remaining.length>0&&ringCapacities[ri].nodes.length<ringCapacities[ri].capacity*2){
-          ringCapacities[ri].nodes.push(remaining.shift());
-        }
-      }
-    });
+    /* fixed type order -> one flat fill list, then greedily chunked into the ring plan */
+    var flat=[];typesPresent.forEach(function(tn){buckets[tn].forEach(function(n){flat.push(n);});});
 
-    /* place nodes on rings */
-    var centerNode=null;var maxRelCount=0;
-    ringCapacities.forEach(function(rc,ri){
-      var radius=rc.radius;
-      var nodes=rc.nodes;var count=nodes.length;
+    var ellY=0.65;var placedAngle={};var cursor=0;
+    plan.radii.forEach(function(radius,ri){
+      if(cursor>=flat.length)return;
+      var cap=plan.caps[ri];
+      var ringNodes=flat.slice(cursor,cursor+cap);
+      cursor+=ringNodes.length;
+      var count=ringNodes.length;
       if(count===0)return;
-      var ellY=0.65;
-      nodes.forEach(function(n,ni){
-        var angle=(ni/count)*Math.PI*2+(ri*0.15);
+      /* faint ring guide so each ring reads as one clean concentric loop */
+      rg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rp(radius)),
+        new THREE.LineBasicMaterial({color:gcol,transparent:true,opacity:0.05})));
+
+      var ordered;
+      if(ri===0){
+        /* first ring has no prior neighbors yet: seed by course sector so each
+           course's nodes already start out clustered in the same angular slice */
+        ordered=ringNodes.map(function(n,idx){return{n:n,key:courseIdx(n)*1000+idx};});
+        ordered.sort(function(a,b){return a.key-b.key;});
+        ordered=ordered.map(function(o){return o.n;});
+      } else {
+        /* later rings: aim each node at the average angle of its already-placed
+           related nodes (any outer ring), falling back to its course sector */
+        ordered=ringNodes.map(function(n){
+          var rel=n.relatedNodeIds||[];var sx=0,sy=0,cnt=0;
+          rel.forEach(function(rid){
+            if(placedAngle.hasOwnProperty(rid)){sx+=Math.cos(placedAngle[rid]);sy+=Math.sin(placedAngle[rid]);cnt++;}
+          });
+          var target=cnt>0?Math.atan2(sy,sx):(courseIdx(n)/Math.max(courseOrder.length,1))*Math.PI*2;
+          return{n:n,target:target};
+        });
+        ordered.sort(function(a,b){return a.target-b.target;});
+        ordered=ordered.map(function(o){return o.n;});
+      }
+
+      ordered.forEach(function(n,ni){
+        var angle=(ni/count)*Math.PI*2;
+        placedAngle[n.id]=angle;
         var px=Math.cos(angle)*radius,py=Math.sin(angle)*radius*ellY;
         var ng=new THREE.Group();ng.position.set(px,py,0.04);ng.userData.nodeId=n.id;
         rg.add(ng);ngs[n.id]=ng;
         var sc=makeNodeShape(n.type,ghex);
         var st=new THREE.CanvasTexture(sc);st.needsUpdate=true;
         var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:st,transparent:true,depthTest:false,opacity:0.95}));
-        sp.scale.set(1.2,1.2,1);sp.userData.nodeId=n.id;sp.renderOrder=0;
+        sp.scale.set(scale,scale,1);sp.userData.nodeId=n.id;sp.renderOrder=0;
         ng.add(sp);sps[n.id]=sp;
         var lc=makeLabel(n.name);
         var lt=new THREE.CanvasTexture(lc);lt.needsUpdate=true;
         var lb=new THREE.Sprite(new THREE.SpriteMaterial({map:lt,transparent:true,depthTest:false,opacity:0.9}));
-        lb.scale.set(2.4,0.38,1);lb.position.y=-0.7;lb.renderOrder=1;
+        lb.scale.set(2*scale,0.317*scale,1);lb.position.y=-0.583*scale;lb.renderOrder=1;
         ng.add(lb);lbs[n.id]=lb;
-        /* click target - BIG radius */
-        var ctMesh=new THREE.Mesh(new THREE.SphereGeometry(0.9,8,8),
+        /* click target - generous but scaled down with the icon so neighbors don't overlap */
+        var ctMesh=new THREE.Mesh(new THREE.SphereGeometry(0.75*scale,8,8),
           new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
         ctMesh.userData.nodeId=n.id;ng.add(ctMesh);clickTargets.push(ctMesh);
-        /* track center candidate */
-        var relCount=(n.relatedNodeIds?n.relatedNodeIds.length:0);
-        if(relCount>maxRelCount){maxRelCount=relCount;centerNode=n.id;}
       });
     });
-
-    /* center node (most connected) - place at origin if not already there */
-    if(centerNode&&ngs[centerNode]){
-      var cg=ngs[centerNode];
-      cg.position.set(0,0,0.04);
-      /* highlight center node slightly larger */
-      if(sps[centerNode])sps[centerNode].scale.set(1.35,1.35,1);
-    }
+    /* safety net: ringPlan always sizes for gNodes.length*1.05, so this should never fire */
+    if(cursor<flat.length)console.warn('layout: '+(flat.length-cursor)+' unplaced nodes in '+gname);
   });
 
   /* relations - all icons at midpoint */

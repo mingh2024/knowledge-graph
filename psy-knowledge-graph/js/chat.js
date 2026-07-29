@@ -1,7 +1,7 @@
 /**
  * RAG Chat Module - mock + API-based question answering
  */
-window.createRag(data, nodeIndex) {
+window.createRag = function(data, nodeIndex) {
   var MAX_HISTORY = 10;
   var chatHistory = [];
 
@@ -94,4 +94,3 @@ window.createRag(data, nodeIndex) {
     return { answer: answer, sources: contextNodes.map(function(r) { return { id: r.node.id, name: r.node.name }; }) };
   }
 }
-*** End of File
