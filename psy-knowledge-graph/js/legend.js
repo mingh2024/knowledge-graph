@@ -49,7 +49,7 @@ window.initLegend = function(data) {
   relTypes.forEach(function(rt) {
     relHtml += '<div class="legend-line"><span class="legend-line-symbol">' + rt.symbol + '</span>' + rt.type + '</div>';
   });
-    grid.innerHTML += '<div style="width:100%;height:1px;background:var(--border-color);margin:6px 0"></div>' +
-    '<div class="legend-section-title">关系类型</div>' + relHtml;
+    grid.innerHTML += '<div style="width:100%;height:1px;background:var(--border-color);margin:8px 0"></div>' +
+    '<div class="legend-section-title" style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px">关系类型</div>' + relHtml;
   } catch(e) { console.error(e); }
 }

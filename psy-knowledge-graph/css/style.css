@@ -124,13 +124,13 @@ input,button,textarea{font-family:inherit;font-size:inherit}
 .sidebar-tree::-webkit-scrollbar-track{background:transparent}
 .sidebar-tree::-webkit-scrollbar-thumb{background:var(--scrollbar-bg);border-radius:2px}
 /* === Legend (pinned to sidebar bottom) === */
-.legend-panel{border-top:1px solid var(--legend-border);padding:8px 12px;flex-shrink:0;background:var(--legend-bg)}
-.legend-title{font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px}
+.legend-panel{border-top:1px solid var(--legend-border);padding:10px 14px;flex-shrink:0;background:var(--legend-bg)}
+.legend-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px}
 .legend-grid{display:flex;flex-wrap:wrap;gap:3px 8px}
-.legend-item{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-muted);line-height:1.6}
-.legend-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;font-size:9px;flex-shrink:0}
-.legend-line{display:inline-flex;align-items:center;gap:1px;font-size:9px;color:var(--text-muted);white-space:nowrap}
-.legend-color-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:2px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--text-muted);line-height:1.8}
+.legend-icon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;font-size:16px;flex-shrink:0}
+.legend-line{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--text-muted);white-space:nowrap}
+.legend-color-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:3px}
 /* === Tree === */
 .tree-item{cursor:pointer;user-select:none}
 .tree-item:hover{background:var(--hover-bg)}
@@ -213,3 +213,4 @@ input,button,textarea{font-family:inherit;font-size:inherit}
 .year-btn[data-year="大四"].active{background:rgba(243,156,18,0.15)!important;border-color:#F39C12!important;color:#F39C12!important}
 .night-mode .year-btn{border-color:rgba(255,255,255,0.2)!important}
 .night-mode .year-btn.active{border-color:rgba(255,255,255,0.4)!important}
+.legend-section-title{font-size:11px;font-weight:600;color:var(--text-muted);margin-top:4px;margin-bottom:2px}

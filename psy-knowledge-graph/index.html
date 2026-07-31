@@ -8,7 +8,8 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "/node_modules/three/build/three.module.min.js"
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
   }
 }
 </script>
@@ -25,11 +26,6 @@
     </div>
     <p id="passwordError" class="password-error hidden">密码错误，请重试</p>
   </div>
-</div>
-
-<div id="overviewThumb" style="display:none;position:fixed;top:56px;right:12px;width:90px;height:90px;background:rgba(0,0,0,0.2);border-radius:8px;cursor:pointer;z-index:300;overflow:hidden;border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(4px)">
-  <canvas id="overviewCanvas" width="90" height="90"></canvas>
-  <div style="position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:9px;color:rgba(255,255,255,0.6);pointer-events:none">全部展开</div>
 </div>
 
 <div id="errorMsg" style="display:none;position:fixed;top:60px;left:10%;width:80%;background:#2a0a0a;border:1px solid #E8635A;color:#ff6b6b;padding:16px 20px;border-radius:8px;z-index:9999;font-size:13px;"></div>
@@ -108,7 +104,7 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from '/node_modules/three/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 window.THREE = THREE;
 window.OrbitControls = OrbitControls;
 
@@ -150,7 +146,7 @@ async function startApp() {
       }); }
     } catch(e){_errs.push('detail:'+e.message);}
     window.__detail = detail;
-    if (graph) graph.onNodeClick(function(id) { if (detail) try{detail.show(id);}catch(e){console.error(e);} });
+    if (graph) graph.onNodeClick(function(id) { if (detail) try{detail.show(id);}catch(e){} if (graph) graph.highlightNode(id); if (window.__tree) window.__tree.expandToNode(id); });
     var treeMod = null;
     try {
       if (window.createTree) { treeMod = window.createTree(data, ni, {
@@ -159,51 +155,22 @@ async function startApp() {
       }); }
     } catch(e){_errs.push('tree:'+e.message);}
     window.__tree = treeMod;
-    try { if (window.createRag) window.createRag(data, ni); } catch(e){_errs.push('rag:'+e.message);}
+    try { if (window.createRag) { window.__rag = window.createRag(data, ni); } } catch(e){_errs.push('rag:'+e.message);}
     try { if (window.createLayout) window.createLayout(); } catch(e){_errs.push('layout:'+e.message);}
     try { if (window.initLegend) window.initLegend(data); } catch(e){_errs.push('legend:'+e.message);}
 
-    /* Overview thumbnail */
-    var ovCanvas = document.getElementById('overviewCanvas');
-    var ovCtx = ovCanvas ? ovCanvas.getContext('2d') : null;
-    if (ovCtx) {
-      var ovColors = ['#5B9BD5','#4ECDC4','#9B59B6','#F39C12'];
-      for (var oi = 0; oi < 4; oi++) {
-        var or = 15 + oi * 12;
-        ovCtx.beginPath();
-        ovCtx.arc(45, 45, or, 0, Math.PI * 2);
-        ovCtx.strokeStyle = ovColors[oi];
-        ovCtx.lineWidth = 4 - oi * 0.5;
-        ovCtx.globalAlpha = 0.3 + oi * 0.12;
-        ovCtx.stroke();
-      }
-      ovCtx.fillStyle = '#fff';
-      ovCtx.font = '10px sans-serif';
-      ovCtx.textAlign = 'center';
-      ovCtx.fillText('\u56db\u5e74\u5236', 45, 48);
-      ovCtx.globalAlpha = 1;
-    }
 
     document.querySelectorAll('.year-btn').forEach(function(b){
       b.addEventListener('click', function(){
         document.querySelectorAll('.year-btn').forEach(function(x){x.classList.remove('active');});
         b.classList.add('active');
         graph.focusYear(b.dataset.year);
-        var ov = document.getElementById('overviewThumb');
-        if (ov) ov.style.display = 'block';
       });
     });
     document.getElementById('btnResetView').onclick = function(){
       graph.resetView(); graph.unhighlightAll(); if(detail)detail.hide();
       document.querySelectorAll('.year-btn').forEach(function(x){x.classList.remove('active');});
-      var ov = document.getElementById('overviewThumb');
-      if (ov) ov.style.display = 'none';
     };
-    if (ovCanvas) {
-      ovCanvas.parentElement.addEventListener('click', function(){
-        document.getElementById('btnResetView').click();
-      });
-    }
     document.getElementById('btnToggleRotate').onclick = function(){
       var a = !window.__autoRotate; window.__autoRotate = a;
       graph.setAutoRotate(a);
@@ -228,6 +195,44 @@ async function startApp() {
     });
     document.getElementById('btnDayNight').textContent = '☆';
     var _ee=document.getElementById('errorMsg');if(_errs.length&&_ee){showErr('WARN: '+_errs.join(' | '));}else if(_ee)_ee.style.display='none';
+    /* RAG chat wiring */
+    if (window.__rag) {
+      var ragInp = document.getElementById('ragInput');
+      var ragBtn = document.getElementById('btnRagSend');
+      function askRag() {
+        var q = ragInp.value.trim();
+        if (!q) return;
+        ragInp.value = '';
+        var container = document.getElementById('ragMessages');
+        container.innerHTML += '<div class="rag-msg rag-msg-user"><div class="msg-avatar">You</div><div class="msg-content">' + q.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div></div>';
+        container.scrollTop = container.scrollHeight;
+        (async function(){
+          var opts = {
+            topK: parseInt(document.getElementById('ragTopK').value) || 5,
+            apiEndpoint: document.getElementById('ragApiEndpoint').value || '',
+            apiKey: document.getElementById('ragApiKey').value || '',
+            model: document.getElementById('ragModel').value || 'deepseek-chat'
+          };
+          var resp = await window.__rag.askQuestion(q, opts);
+          var answer = (resp.answer || 'No response').replace(/\n/g,'<br>');
+          answer = answer.replace(/\[ID:([^\]]+)\]\{([^}]+)\}/g, function(m, id, name) {
+            return '<span class="kp-link" data-node-id="' + id + '">' + name + '</span>';
+          });
+          container.innerHTML += '<div class="rag-msg rag-msg-system"><div class="msg-avatar">Bot</div><div class="msg-content">' + answer + '</div></div>';
+          container.scrollTop = container.scrollHeight;
+          container.querySelectorAll('.kp-link').forEach(function(el) {
+            el.addEventListener('click', function() {
+              var id = el.dataset.nodeId;
+              if (id && window.__detail) window.__detail.show(id);
+              if (id && window.__graph) window.__graph.highlightNode(id);
+              if (id && window.__tree) window.__tree.expandToNode(id);
+            });
+          });
+        })();
+      }
+      ragBtn.addEventListener('click', askRag);
+      ragInp.addEventListener('keydown', function(e) { if (e.key === 'Enter') askRag(); });
+    }
     console.log('App started OK');
   } catch(err) {
     showErr('ERROR: '+err.message+'\n'+err.stack);
