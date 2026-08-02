@@ -1,1 +1,5 @@
-更新Excel表
+1. 点击knowledge-graph-source.xlsx
+2. 点击右上角三个点...，下面点击delete然后commit
+3. 在data文件夹里点击右上角add file然后upload选择新的excel表然后commit
+4. 确保excel表的名字也是knowledge-graph-source.xlsx
+5. knowledge-graph-683.pages.dev网站会自动更新知识图谱
