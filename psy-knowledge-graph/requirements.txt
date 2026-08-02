@@ -1,3 +1,2 @@
-﻿# 知识图谱2.0 Python 环境
-python >= 3.8
+﻿# 知识图谱2.0 Python 环境 (requires Python >= 3.8)
 openpyxl>=3.1  # build_data_from_excel.py 读取 data/knowledge-graph-source.xlsx 需要
